@@ -560,20 +560,16 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 				// Invoke factory processors registered as beans in the context.
 				invokeBeanFactoryPostProcessors(beanFactory);
 
-
-
-				/*
-				 * 对容器中的 Bean 对象的操作
-				 */
 				// Register bean processors that intercept bean creation.
+				//注册beanPostProcessor
 				registerBeanPostProcessors(beanFactory);
 
 				//对一些国际化的处理
 				// Initialize message source for this context.
 				initMessageSource();
 
-				// spring初始化一些 Event 事件
 				// Initialize event multicaster for this context.
+				//初始化应用事件广播器
 				initApplicationEventMulticaster();
 
 				//空壳方法，应该是spring后期的扩展点
@@ -686,15 +682,15 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 		// Tell the internal bean factory to use the context's class loader etc.
 		// 设置一个类加载器，因为后续我们要根据bd去产生类，产生类就必不可少的需要一个类加载器
 		beanFactory.setBeanClassLoader(getClassLoader());
-
-		// bean表达式解释器
+		//bean表达式解释器，后面说  能够获取bean当中的属性在前台页面
 		beanFactory.setBeanExpressionResolver(new StandardBeanExpressionResolver(beanFactory.getBeanClassLoader()));
-
-		// 我猜是添加一个处理我们property或者xml文件的解析器，这个不是很重要，因为现在spring推崇0配置
+		//对象与string类型的转换   <property red="dao">
 		beanFactory.addPropertyEditorRegistrar(new ResourceEditorRegistrar(this, getEnvironment()));
 
-		// 添加一个后置处理器，第1个（参与bean实例化过程的后置处理器）
 		// Configure the bean factory with context callbacks.
+		//添加一个后置管理器 第1个（参与bean实例化过程的后置处理器）
+		//ApplicationContextAwareProcessor
+		// 能够在bean中获得到各种*Aware（*Aware都有其作用）
 		beanFactory.addBeanPostProcessor(new ApplicationContextAwareProcessor(this));
 
 		/**
@@ -729,7 +725,9 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 			beanFactory.setTempClassLoader(new ContextTypeMatchClassLoader(beanFactory.getBeanClassLoader()));
 		}
 
-		// 注册默认的环境配置
+		//意思是如果自定义的Bean中没有名为"systemProperties"和"systemEnvironment"的Bean，
+		// 则注册两个Bena，Key为"systemProperties"和"systemEnvironment"，Value为Map，
+		// 这两个Bean就是一些系统配置和系统环境信息
 		// Register default environment beans.
 		if (!beanFactory.containsLocalBean(ENVIRONMENT_BEAN_NAME)) {
 			beanFactory.registerSingleton(ENVIRONMENT_BEAN_NAME, getEnvironment());
@@ -793,9 +791,11 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 	 */
 	protected void initMessageSource() {
 		ConfigurableListableBeanFactory beanFactory = getBeanFactory();
+		//查找是否包含了名为messageSource的bean，如果没有，创建一个默认的
 		if (beanFactory.containsLocalBean(MESSAGE_SOURCE_BEAN_NAME)) {
 			this.messageSource = beanFactory.getBean(MESSAGE_SOURCE_BEAN_NAME, MessageSource.class);
 			// Make MessageSource aware of parent MessageSource.
+			//判断是否有父类且是一个分层级的messageSource，如果是将父容器的的messageSource设置到里边
 			if (this.parent != null && this.messageSource instanceof HierarchicalMessageSource) {
 				HierarchicalMessageSource hms = (HierarchicalMessageSource) this.messageSource;
 				if (hms.getParentMessageSource() == null) {
@@ -943,9 +943,8 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 		// Allow for caching all bean definition metadata, not expecting further changes.
 		beanFactory.freezeConfiguration();
 
-		// 预处理实例化单例
-		// 跟进去看
 		// Instantiate all remaining (non-lazy-init) singletons.
+		//实例化所有的单例对象
 		beanFactory.preInstantiateSingletons();
 	}
 

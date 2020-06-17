@@ -181,6 +181,8 @@ public class AnnotationConfigUtils {
 		 *   我们后面类的扫描就是这个牛逼的类来做处理的；
 		 */
 		if (!registry.containsBeanDefinition(CONFIGURATION_ANNOTATION_PROCESSOR_BEAN_NAME)) {
+			//需要注意的是ConfigurationClassPostProcessor的类型是BeanDefinitionRegistryPostProcessor
+			//而 BeanDefinitionRegistryPostProcessor 最终实现BeanFactoryPostProcessor这个接口
 			RootBeanDefinition def = new RootBeanDefinition(ConfigurationClassPostProcessor.class);
 			def.setSource(source);
 			/**
@@ -194,7 +196,9 @@ public class AnnotationConfigUtils {
 		 * 2.第二个
 		 */
 		if (!registry.containsBeanDefinition(AUTOWIRED_ANNOTATION_PROCESSOR_BEAN_NAME)) {
-			// 这个后置处理器就是来处理我们的@Autowired注解的
+			//AutowiredAnnotationBeanPostProcessor 实现了 MergedBeanDefinitionPostProcessor
+			//MergedBeanDefinitionPostProcessor 最终实现了 BeanPostProcessor
+			//这个后置处理器就是来处理我们的@Autowired注解的
 			RootBeanDefinition def = new RootBeanDefinition(AutowiredAnnotationBeanPostProcessor.class);
 			def.setSource(source);
 			beanDefs.add(registerPostProcessor(registry, def, AUTOWIRED_ANNOTATION_PROCESSOR_BEAN_NAME));
@@ -275,6 +279,9 @@ public class AnnotationConfigUtils {
 		if (registry instanceof DefaultListableBeanFactory) {
 			return (DefaultListableBeanFactory) registry;
 		} else if (registry instanceof GenericApplicationContext) {
+			//这里在AnnotationConfigApplicationContext初始化的时候this()
+			//方法中调用了父类GenericApplicationContext的时候new了一个DefaultListableBeanFactory对象
+			//下面代码返回这个对象
 			return ((GenericApplicationContext) registry).getDefaultListableBeanFactory();
 		} else {
 			return null;

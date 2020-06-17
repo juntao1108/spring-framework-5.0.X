@@ -78,6 +78,7 @@ class ConfigurationClassEnhancer {
 			//增强方法，主要是控制bean的作用域
 			//通俗的来说，就是不要每次都要新创建一个bean
 			new BeanMethodInterceptor(),
+			//设置一个beanFactory
 			new BeanFactoryAwareMethodInterceptor(),
 			NoOp.INSTANCE
 	};
@@ -111,7 +112,7 @@ class ConfigurationClassEnhancer {
 			}
 			return configClass;
 		}
-		// cglib代理
+		//没有被代理cglib代理
 		Class<?> enhancedClass = createClass(newEnhancer(configClass, classLoader));
 		if (logger.isDebugEnabled()) {
 			logger.debug(String.format("Successfully enhanced %s; enhanced class name is: %s",
@@ -124,7 +125,6 @@ class ConfigurationClassEnhancer {
 	 * Creates a new CGLIB {@link Enhancer} instance.
 	 */
 	private Enhancer newEnhancer(Class<?> configSuperClass, @Nullable ClassLoader classLoader) {
-
 		Enhancer enhancer = new Enhancer();
 		//增强父类，地球人都知道cglib是基于继承来的
 		enhancer.setSuperclass(configSuperClass);
@@ -132,7 +132,7 @@ class ConfigurationClassEnhancer {
 		//增强接口，为什么要增强接口
 		//便于判断，表示一个类已经被增强了
 		enhancer.setInterfaces(new Class<?>[] {EnhancedConfiguration.class});
-
+		//不继承Factory接口
 		enhancer.setUseFactory(false);
 		enhancer.setNamingPolicy(SpringNamingPolicy.INSTANCE);
 
@@ -143,8 +143,7 @@ class ConfigurationClassEnhancer {
 		//有了factory就能获得对象，而不用去通过方法获得对象了，因为通过方法获得对象不能控制其过程
 		//该BeanFactory的作用是在this调用时拦截该调用，并直接在beanFactory中获得目标bean
 		enhancer.setStrategy(new BeanFactoryAwareGeneratorStrategy(classLoader));
-
-
+		//过滤方法，不能每次都去new
 		enhancer.setCallbackFilter(CALLBACK_FILTER);
 		enhancer.setCallbackTypes(CALLBACK_FILTER.getCallbackTypes());
 		return enhancer;
@@ -319,6 +318,7 @@ class ConfigurationClassEnhancer {
 
 
 	/**
+	 * 用于拦截@Bean方法的调用，并直接从BeanFactory中获取目标bean，而不是通过执行方法。
 	 * Intercepts the invocation of any {@link Bean}-annotated methods in order to ensure proper
 	 * handling of bean semantics such as scoping and AOP proxying.
 	 * @see Bean
@@ -340,6 +340,7 @@ class ConfigurationClassEnhancer {
 			//enhancedConfigInstance 代理
 			//通过enhancedConfigInstance中的cglib生成的成员变量$$beanFactory生成beanFactory
 			ConfigurableBeanFactory beanFactory = getBeanFactory(enhancedConfigInstance);
+
 			String beanName = BeanAnnotationHelper.determineBeanNameFor(beanMethod);
 
 			// Determine whether this bean is a scoped-proxy
@@ -391,7 +392,6 @@ class ConfigurationClassEnhancer {
 				return cglibMethodProxy.invokeSuper(enhancedConfigInstance, beanMethodArgs);
 			}
 
-			//这行代码进去看
 			return resolveBeanReference(beanMethod, beanMethodArgs, beanFactory, beanName);
 		}
 
@@ -521,6 +521,7 @@ class ConfigurationClassEnhancer {
 
 			try {
 				Class<?> clazz = factoryBean.getClass();
+				//final是不能被代理的
 				boolean finalClass = Modifier.isFinal(clazz.getModifiers());
 				boolean finalMethod = Modifier.isFinal(clazz.getMethod("getObject").getModifiers());
 				if (finalClass || finalMethod) {

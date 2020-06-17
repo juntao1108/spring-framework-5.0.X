@@ -140,7 +140,6 @@ import org.springframework.util.StringValueResolver;
  * @see org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor
  *
  *
- *
  * 主要处理@Resource、@PostConstruct和@PreDestroy注解的实现
  * Resource的处理是由它自己完成
  * 其它两个是由它的父类完成
@@ -321,7 +320,8 @@ public class CommonAnnotationBeanPostProcessor extends InitDestroyAnnotationBean
 	@Override
 	public PropertyValues postProcessPropertyValues(
 			PropertyValues pvs, PropertyDescriptor[] pds, Object bean, String beanName) {
-
+		//找出类中被@Resource注解的属性和方法
+		//else if (field.isAnnotationPresent(Resource.class))
 		InjectionMetadata metadata = findResourceMetadata(beanName, bean.getClass(), pvs);
 		try {
 			metadata.inject(bean, beanName, pvs);
@@ -678,11 +678,11 @@ public class CommonAnnotationBeanPostProcessor extends InitDestroyAnnotationBean
 				service = (Service) getResource(this, requestingBeanName);
 			}
 			catch (NoSuchBeanDefinitionException notFound) {
-				// service to be created through generated class.
+				// Service to be created through generated class.
 				if (Service.class == this.lookupType) {
 					throw new IllegalStateException("No resource with name '" + this.name + "' found in context, " +
-							"and no specific JAX-WS service subclass specified. The typical solution is to either specify " +
-							"a LocalJaxWsServiceFactoryBean with the given name or to specify the (generated) service " +
+							"and no specific JAX-WS Service subclass specified. The typical solution is to either specify " +
+							"a LocalJaxWsServiceFactoryBean with the given name or to specify the (generated) Service " +
 							"subclass as @WebServiceRef(...) value.");
 				}
 				if (StringUtils.hasLength(this.wsdlLocation)) {
@@ -690,14 +690,14 @@ public class CommonAnnotationBeanPostProcessor extends InitDestroyAnnotationBean
 						Constructor<?> ctor = this.lookupType.getConstructor(URL.class, QName.class);
 						WebServiceClient clientAnn = this.lookupType.getAnnotation(WebServiceClient.class);
 						if (clientAnn == null) {
-							throw new IllegalStateException("JAX-WS service class [" + this.lookupType.getName() +
+							throw new IllegalStateException("JAX-WS Service class [" + this.lookupType.getName() +
 									"] does not carry a WebServiceClient annotation");
 						}
 						service = (Service) BeanUtils.instantiateClass(ctor,
 								new URL(this.wsdlLocation), new QName(clientAnn.targetNamespace(), clientAnn.name()));
 					}
 					catch (NoSuchMethodException ex) {
-						throw new IllegalStateException("JAX-WS service class [" + this.lookupType.getName() +
+						throw new IllegalStateException("JAX-WS Service class [" + this.lookupType.getName() +
 								"] does not have a (URL, QName) constructor. Cannot apply specified WSDL location [" +
 								this.wsdlLocation + "].");
 					}

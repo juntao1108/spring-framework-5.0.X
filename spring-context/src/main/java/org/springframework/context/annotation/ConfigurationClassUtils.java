@@ -92,12 +92,16 @@ abstract class ConfigurationClassUtils {
 		if (beanDef instanceof AnnotatedBeanDefinition &&
 				className.equals(((AnnotatedBeanDefinition) beanDef).getMetadata().getClassName())) {
 			// Can reuse the pre-parsed metadata from the given BeanDefinition...
+			//如果BeanDefinition 是 AnnotatedBeanDefinition的实例,并且className 和 BeanDefinition中 的元数据 的类名相同
+			// 则直接从BeanDefinition 获得Metadata
 			metadata = ((AnnotatedBeanDefinition) beanDef).getMetadata();
 		}
 		// 2.生成AbstractBeanDefinition类型的bd
 		else if (beanDef instanceof AbstractBeanDefinition && ((AbstractBeanDefinition) beanDef).hasBeanClass()) {
 			// Check already loaded Class if present...
 			// since we possibly can't even load the class file for this Class.
+			//如果BeanDefinition 是 AbstractBeanDefinition的实例,并且beanDef 有 beanClass 属性存在
+			//则实例化StandardAnnotationMetadata
 			Class<?> beanClass = ((AbstractBeanDefinition) beanDef).getBeanClass();
 			metadata = new StandardAnnotationMetadata(beanClass, true);
 		}
@@ -116,6 +120,7 @@ abstract class ConfigurationClassUtils {
 
 		//如果这个bean是加了@Configurantion注解，那么这里spring会给它一个FULL属性，这个后面会有用到（cglib相关）
 		if (isFullConfigurationCandidate(metadata)) {
+			//如果存在Configuration 注解,则为BeanDefinition 设置configurationClass属性为full
 			beanDef.setAttribute(CONFIGURATION_CLASS_ATTRIBUTE, CONFIGURATION_CLASS_FULL);
 		}
 		// 如果这个bean不是加了@Configuration注解，那么就会判断是否加了下面这些属性，加了则直接给他赋予lite

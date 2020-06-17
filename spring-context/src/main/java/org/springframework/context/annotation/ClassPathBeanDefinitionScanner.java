@@ -264,7 +264,6 @@ public class ClassPathBeanDefinitionScanner extends ClassPathScanningCandidateCo
 	}
 
 	/**
-	 * 解析扫描的一些基本信息，比如是否过滤，比如是否加入以下新的包
 	 * Perform a scan within the specified base packages,
 	 * returning the registered bean definitions.
 	 * <p>This method does <i>not</i> register an annotation config processor
@@ -273,7 +272,6 @@ public class ClassPathBeanDefinitionScanner extends ClassPathScanningCandidateCo
 	 * @return set of beans registered if any for tooling registration purposes (never {@code null})
 	 */
 	protected Set<BeanDefinitionHolder> doScan(String... basePackages) {
-
 		Assert.notEmpty(basePackages, "At least one base package must be specified");
 
 		//又是一个holder,其实就是做转换用的
@@ -295,10 +293,14 @@ public class ClassPathBeanDefinitionScanner extends ClassPathScanningCandidateCo
 				candidate.setScope(scopeMetadata.getScopeName());
 				String beanName = this.beanNameGenerator.generateBeanName(candidate, this.registry);
 				if (candidate instanceof AbstractBeanDefinition) {
+					//如果这个类是AbstractBeanDefinition的子类
+					//则为他设置默认值，比如lazy，init destory
 					postProcessBeanDefinition((AbstractBeanDefinition) candidate, beanName);
 				}
 				if (candidate instanceof AnnotatedBeanDefinition) {
-					// 处理一些特殊的注解，比如@Lazy、@Primary、@DependsOn
+					//检查并且处理常用的注解比如@Lazy、@Primary、@DependsOn
+					//这里的处理主要是指把常用注解的值设置到AnnotatedBeanDefinition当中
+					//当前前提是这个类必须是AnnotatedBeanDefinition类型的，说白了就是加了注解的类
 					AnnotationConfigUtils.processCommonDefinitionAnnotations((AnnotatedBeanDefinition) candidate);
 				}
 				// 判断beanDefinitionMap中是否包含该类，不包含就注册进去

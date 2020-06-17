@@ -100,6 +100,7 @@ final class PostProcessorRegistrationDelegate {
 			// uninitialized to let the bean factory post-processors apply to them!
 			// Separate between BeanDefinitionRegistryPostProcessors that implement
 			// PriorityOrdered, Ordered, and the rest.
+			//这个currentRegistryProcessors 放的是spring内部自己实现了BeanDefinitionRegistryPostProcessor接口的对象
 
 			// 这个地方又定义了一个List<BeanDefinitionRegistryPostProcessor>,
 			// 这个List主要是维护spring自己实现了BeanDefinitionRegistryPostProcessor接口的对象
@@ -115,18 +116,30 @@ final class PostProcessorRegistrationDelegate {
 			// 所以要理清楚这段逻辑，还需要从开始的那段代码再理一下
 			String[] postProcessorNames =
 					beanFactory.getBeanNamesForType(BeanDefinitionRegistryPostProcessor.class, true, false);
+			//这个地方可以得到一个BeanFactoryPostProcessor，因为是spring默认在最开始自己注册的
+			//为什么要在最开始注册这个呢？
+			//因为spring的工厂需要许解析去扫描等等功能
+			//而这些功能都是需要在spring工厂初始化完成之前执行
+			//要么在工厂最开始的时候、要么在工厂初始化之中，反正不能再之后
+			//因为如果在之后就没有意义，因为那个时候已经需要使用工厂了
+			//所以这里spring'在一开始就注册了一个BeanFactoryPostProcessor，用来插手springfactory的实例化过程
+			//在这个地方断点可以知道这个类叫做ConfigurationClassPostProcessor
+			//ConfigurationClassPostProcessor那么这个类能干嘛呢？可以参考源码
+			//下面我们对这个牛逼哄哄的类（他能插手spring工厂的实例化过程还不牛逼吗？）重点解释
 			for (String ppName : postProcessorNames) {
 				if (beanFactory.isTypeMatch(ppName, PriorityOrdered.class)) {
 					currentRegistryProcessors.add(beanFactory.getBean(ppName, BeanDefinitionRegistryPostProcessor.class));
 					processedBeans.add(ppName);
 				}
 			}
-			// 排序，不重要
+			//排序不重要，况且currentRegistryProcessors这里也只有一个数据
 			sortPostProcessors(currentRegistryProcessors, beanFactory);
 
 			// 这里是把spring的和我们定义的（这里是指加了注解交给spring管理的，不包括我们自己通过实现接口不加注解）合并
 			// 别问为为啥合并，应为他们都是实现BeanDefinitionRegistryPostProcessor这个接口的
 			registryProcessors.addAll(currentRegistryProcessors);
+			//最重要。注意这里是方法调用
+			//执行所有BeanDefinitionRegistryPostProcessor
 
 			/**
 			 * 重中之重
@@ -341,6 +354,8 @@ final class PostProcessorRegistrationDelegate {
 
 	/**
 	 * Invoke the given BeanDefinitionRegistryPostProcessor beans.
+	 * 注意对比下面这个方法
+	 * BeanDefinitionRegistryPostProcessor和BeanFactoryPostProcessor
 	 */
 	private static void invokeBeanDefinitionRegistryPostProcessors(
 			Collection<? extends BeanDefinitionRegistryPostProcessor> postProcessors, BeanDefinitionRegistry registry) {
@@ -382,6 +397,8 @@ final class PostProcessorRegistrationDelegate {
 	 * BeanPostProcessor that logs an info message when a bean is created during
 	 * BeanPostProcessor instantiation, i.e. when a bean is not eligible for
 	 * getting processed by all BeanPostProcessors.
+	 * 当Spring的配置中的后处理器还没有被注册就已经开始了bean的初始化
+	 *	便会打印出BeanPostProcessorChecker中设定的信息
 	 */
 	private static final class BeanPostProcessorChecker implements BeanPostProcessor {
 

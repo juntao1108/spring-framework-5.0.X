@@ -26,6 +26,22 @@ import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 
 /**
+ * Spring中出来注解Bean定义的类有两个：
+ * AnnotationConfigApplicationContext和
+ * AnnotationConfigWebApplicationContex。
+ * annotationConfigWebApplicationContext
+ * 是AnnotationConfigApplicationContext的web版本
+ * 两者的用法以及对注解的处理方式几乎没有什么差别
+ * 通过分析这个类我们知道注册一个bean到spring容器有两种办法
+ * 一、直接将注解Bean注册到容器中：（参考）public void register(Class<?>... annotatedClasses)
+ * 但是直接把一个注解的bean注册到容器当中也分为两种方法
+ * 1、在初始化容器时注册并且解析
+ * 2、也可以在容器创建之后手动调用注册方法向容器注册，然后通过手动刷新容器，使得容器对注册的注解Bean进行处理。
+ * 思考：为什么@profile要使用这类的第2种方法
+ *
+ * 二、通过扫描指定的包及其子包下的所有类
+ * 扫描其实同上，也是两种方法，初始化的时候扫描，和初始化之后再扫描
+ *
  * Standalone application context, accepting annotated classes as input - in particular
  * {@link Configuration @Configuration}-annotated classes, but also plain
  * {@link org.springframework.stereotype.Component @Component} types and JSR-330 compliant
@@ -51,17 +67,31 @@ import org.springframework.util.Assert;
  */
 public class AnnotationConfigApplicationContext extends GenericApplicationContext implements AnnotationConfigRegistry {
 
+	/**
+	 * 这个类顾名思义是一个reader，一个读取器
+	 * 读取什么呢？还是顾名思义AnnotatedBeanDefinition意思是读取一个被加了注解的bean
+	 * 这个类在构造方法中实例化的
+	 */
 	private final AnnotatedBeanDefinitionReader reader;
 
+	/**
+	 * 同意顾名思义，这是一个扫描器，扫描所有加了注解的bean
+	 *  同样是在构造方法中被实例化的
+	 */
 	private final ClassPathBeanDefinitionScanner scanner;
 
 
 	/**
+	 * 初始化一个bean的读取和扫描器
+	 * 何谓读取器和扫描器参考上面的属性注释
+	 * 默认构造函数，如果直接调用这个默认构造方法，需要在稍后通过调用其register()
+	 * 去注册配置类（javaconfig），并调用refresh()方法刷新容器，
+	 * 触发容器对注解Bean的载入、解析和注册过程
+	 * 这种使用过程我在ioc应用的第二节课讲@profile的时候讲过
 	 * Create a new AnnotationConfigApplicationContext that needs to be populated
 	 * through {@link #register} calls and then manually {@linkplain #refresh refreshed}.
 	 */
 	public AnnotationConfigApplicationContext() {
-
 		/**
 		 * 先调用父类的构造方法创建bean工厂对象DefaultListableBeanFactory
 		 * 父类的构造方法
@@ -104,25 +134,23 @@ public class AnnotationConfigApplicationContext extends GenericApplicationContex
 	}
 
 	/**
-	 * 这个构造方法需要传入一个被 JavaConfig 定义了的注解类
-	 * 这个方法会创建一个AnnotationConfigApplicationContext类，然后把我们传进来的被注解的类对象
-	 * 定义装入到Spring的上下文中，简单说就是让这些被注解的类受Spring管理
+	 * 这个构造方法需要传入一个被javaconfig注解了的配置类
+	 * 然后会把这个被注解了javaconfig的类通过注解读取器读取后继而解析
 	 * Create a new AnnotationConfigApplicationContext, deriving bean definitions
 	 * from the given annotated classes and automatically refreshing the context.
 	 * @param annotatedClasses one or more annotated classes,
 	 * e.g. {@link Configuration @Configuration} classes
 	 */
 	public AnnotationConfigApplicationContext(Class<?>... annotatedClasses) {
-		//这里由于它有父类，故而会先调用父类的构造方法，然后再调用自己的构造方法
-		//在自己的构造方法中会初始化一个读取器和扫描器
-
-		this();//调用无参构造方法，实例化一个bdReader(读取器)和一个scanner(扫描器)
+		//annotatedClasses  appconfig.class
+		//这里由于他有父类，故而会先调用父类的构造方法，然后才会调用自己的构造方法
+		//在自己构造方法中初始一个读取器和扫描器
+		this();
 		register(annotatedClasses);
 		refresh();
 	}
 
 	/**
-	 *
 	 * Create a new AnnotationConfigApplicationContext, scanning for bean definitions
 	 * in the given packages and automatically refreshing the context.
 	 * @param basePackages the packages to check for annotated classes
@@ -178,8 +206,13 @@ public class AnnotationConfigApplicationContext extends GenericApplicationContex
 	//---------------------------------------------------------------------
 
 	/**
-	 * 注册要处理的配置类（注意这个注解类是@Configuration的类），
-	 * 这里的配置类可以是多个
+	 * 注册单个bean给容器
+	 * 比如有新加的类可以用这个方法
+	 * 但是注册注册之后需要手动调用refresh方法去触发容器解析注解
+	 *
+	 * 有两个意思
+	 * 他可以注册一个配置类
+	 * 他还可以单独注册一个bean
 	 * Register one or more annotated classes to be processed.
 	 * <p>Note that {@link #refresh()} must be called in order for the context
 	 * to fully process the new classes.
