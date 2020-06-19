@@ -487,6 +487,15 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 			// 这个接口来自定义一个后置处理器，然后返回你要的对象直接返回，这样你的这个对象就不会执行后面的
 			// 实例化过程了，不过一般不会有人这么做，除非是有比较特殊的业务场景
 			// Give BeanPostProcessors a chance to return a proxy instead of the target bean instance.
+			/**
+			 * 第一次执行后置处理器 InstantiationAwareBeanPostProcessor#postProcessBeforeInstantiation
+			 *
+			 * 如果这个后置处理器如果返回的不是null，后边只会调用BeanPostProcessors的postProcessAfterInitialization方法，
+			 * 不再做spring其他后置处理器的处理，然后直接返回这个对象。
+			 * 比如需要返回一个代理对象，可以在这个后置处理器的方法中实现
+			 * 目标bean实例获取之前应用此的BeanPostProcessor。 返回的bean对象可能是一个代理，而不是使用目标bean，有效地抑制了目标bean的实例默认。
+			 * 如果一个非空的对象是通过这个方法返回的bean创建过程中会短路。 施加的唯一进一步的处理是postProcessAfterInitialization从配置的回调BeanPostProcessors 。
+			 */
 			Object bean = resolveBeforeInstantiation(beanName, mbdToUse);
 			// 如果你上面是要返回一个寡对象，这里的bean就不是null, 然后再这里直接返回出去了
 			// 如果你实现了一个寡对象，则这个的bean就是null,它就会继续执行后续操作
@@ -561,6 +570,13 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 		synchronized (mbd.postProcessingLock) {
 			if (!mbd.postProcessed) {
 				try {
+					/**
+					 * 第三次执行后置处理器 MergedBeanDefinitionPostProcessor#postProcessMergedBeanDefinition
+					 * 缓存注解信息
+					 * CommonAnnotationBeanPostProcessor查找@Resource和@@PostConstruct生命周期相关注解信息并缓存
+					 * AutowiredAnnotationBeanPostProcessor查找@Autowiring注解信息并缓存
+					 * ApplicationListenerDetector往singletonNames缓存(beanName, beanDefinition.isSingleton())
+					 */
 					applyMergedBeanDefinitionPostProcessors(mbd, beanType, beanName);
 				}
 				catch (Throwable ex) {
@@ -575,21 +591,45 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 		// even when triggered by lifecycle interfaces like BeanFactoryAware.
 		boolean earlySingletonExposure = (mbd.isSingleton() && this.allowCircularReferences &&
 				isSingletonCurrentlyInCreation(beanName));
+		// 早期单例暴露，后边会放到earlySingletonObjects二级缓存中
 		if (earlySingletonExposure) {
 			if (logger.isDebugEnabled()) {
 				logger.debug("Eagerly caching bean '" + beanName +
 						"' to allow for resolving potential circular references");
 			}
+			/**
+			 * --------存在循环依赖的时候才会执行这个后置处理器，没有的话就不会执行getEarlyBeanReference--------
+			 * ----从getSingleton(String beanName, boolean allowEarlyReference)方法中调用getEarlyBeanReference
+			 * 第六次执行后置处理器 SmartInstantiationAwareBeanPostProcessor#getEarlyBeanReference
+			 * 获取一个早期暴露对象，不是bean(对象是被实例化后没有做任何操作，bean是实例化后填充属性执行后置处理器等操作)
+			 * 这个对象后边会放到earlySingletonObjects二级缓存中，用于解决循环依赖使用
+			 * InstantiationAwareBeanPostProcessorAdapter#getEarlyBeanReference
+			 *
+			 * 使用@EnableAspectJAutoProxy开启aop会增加一个后置处理器，为存在循环引用的对象创建代理对象
+			 * A引用B，B引用A，先创建A对象，A对象会在这个处理器中创建代理对象，B会在第八次调用处理器中创建
+			 * AbstractAutoProxyCreator#getEarlyBeanReference 创建代理对象
+			 */
 			addSingletonFactory(beanName, () -> getEarlyBeanReference(beanName, mbd, bean));
 		}
 
 		// Initialize the bean instance.
 		Object exposedObject = bean;
 		try {
-			/** 这里有个重要的场景是循环依赖，看下循环依赖是怎么设置属性的 **/
+			// 这里有个重要的场景是循环依赖，看下循环依赖是怎么设置属性的
 			// 设置属性，非常重要
+			/**
+			 * 第四次执行后置处理器 InstantiationAwareBeanPostProcessor#postProcessAfterInstantiation
+			 * 判断bean需不需要完成属性填充，如果需要就返回true这里默认需要，会完成@Autowiring... 等属性注入
+			 * InstantiationAwareBeanPostProcessorAdapter#postProcessAfterInstantiation
+			 *
+			 * 第五次执行后置处理器InstantiationAwareBeanPostProcessor#postProcessPropertyValues
+			 * 属性填充
+			 * CommonAnnotationBeanPostProcessor 获取第三次执行后置处理器缓存@Resource等...注解信息 完成自动注入
+			 * AutowiredAnnotationBeanPostProcessor 获取第三次执行后置处理器缓存@Autowiring注解信息 完成自动注入
+			 * RequiredAnnotationBeanPostProcessor 完成@Required注解的set方法属性设置
+			 */
 			populateBean(beanName, mbd, instanceWrapper);
-			// 执行后置处理器， aop 就是在这里完成的处理
+			// 执行后置处理器， aop的代理对象就是在这里完成的处理
 			exposedObject = initializeBean(beanName, exposedObject, mbd);
 		} catch (Throwable ex) {
 			if (ex instanceof BeanCreationException && beanName.equals(((BeanCreationException) ex).getBeanName())) {
@@ -1163,6 +1203,11 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 		// 来判断我们在实例化对象的时候，到底要使用哪个构造函数去对我们的bean进行实例化
 		// 如果我们的bean只有一个默认的无参构造方法，则会返回null
 		// Candidate constructors for autowiring?
+		/**
+		 * 第二次执行后置处理器 SmartInstantiationAwareBeanPostProcessor#determineCandidateConstructors
+		 * 推断需要实例化对象的构造方法，
+		 * 执行该后置处理器的类AutowiredAnnotationBeanPostProcessor#determineCandidateConstructors
+		 */
 		Constructor<?>[] ctors = determineConstructorsFromBeanPostProcessors(beanClass, beanName);
 
 		if (ctors != null || mbd.getResolvedAutowireMode() == AUTOWIRE_CONSTRUCTOR ||
@@ -1236,7 +1281,6 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 	@Nullable
 	protected Constructor<?>[] determineConstructorsFromBeanPostProcessors(@Nullable Class<?> beanClass, String beanName)
 			throws BeansException {
-
 		if (beanClass != null && hasInstantiationAwareBeanPostProcessors()) {
 			// 循环执行我们的后置处理器
 			for (BeanPostProcessor bp : getBeanPostProcessors()) {
@@ -1739,12 +1783,18 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 		Object wrappedBean = bean;
 		if (mbd == null || !mbd.isSynthetic()) {
 			// 执行后置处理器的 before
+			/**
+			 * 第七次执行后置处理器 BeanPostProcessor#postProcessBeforeInitialization
+			 * ApplicationContextAwareProcessor 给实现Aware接口的一些属性赋值
+			 * ConfigurationClassPostProcessor 给实现ImportAware接口的属性ImportMetadata赋值
+			 * InitDestroyAnnotationBeanPostProcessor调用第三次后置处理器缓存的带生命周期注解的方法@PostConstruct
+			 */
 			wrappedBean = applyBeanPostProcessorsBeforeInitialization(wrappedBean, beanName);
 		}
 
 		try {
 			// 执行bean的生命周期回调中的init方法
-			// 这里如果是极了@PostConstruct注解，或者实现了InitializingBean这里就是执行afterPropertiesSet方法
+			// 调用实现了InitializingBean这里就是执行afterPropertiesSet方法
 			invokeInitMethods(beanName, wrappedBean, mbd);
 		}
 		catch (Throwable ex) {
@@ -1753,6 +1803,14 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 					beanName, "Invocation of init method failed", ex);
 		}
 		if (mbd == null || !mbd.isSynthetic()) {
+			/**
+			 * 第八次执行后置处理器 BeanPostProcessor#postProcessAfterInitialization
+			 * ApplicationListenerDetector 给实现ApplicationListener接口的属性一些赋值
+			 *
+			 *使用@EnableAspectJAutoProxy开启aop会增加一个后置处理器，为存在循环引用的对象创建代理对象
+			 *A引用B，B引用A，先创建A对象，A对象会在第六次处理器中创建代理对象，B会在这次调用处理器中创建
+			 * AbstractAutoProxyCreator#postProcessAfterInitialization 创建代理对象
+			 */
 			wrappedBean = applyBeanPostProcessorsAfterInitialization(wrappedBean, beanName);
 		}
 

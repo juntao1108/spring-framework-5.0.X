@@ -612,7 +612,9 @@ public class AutowiredAnnotationBeanPostProcessor extends InstantiationAwareBean
 				}
 			}
 			if (value != null) {
+				//调用Field的方法setAccessible(true)，可以为private权限的字段设置属性
 				ReflectionUtils.makeAccessible(field);
+				// 使用jdk的反射方法为字段赋值
 				field.set(bean, value);
 			}
 		}
